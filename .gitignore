@@ -328,3 +328,18 @@ ASALocalRun/
 
 # MFractors (Xamarin productivity tool) working folder 
 .mfractor/
+
+
+Library/
+ProjectSettings/
+Temp/
+Assets/VRCSDK/
+Assets/Plugins/
+Assets/DynamicBone/
+Assets/ExpansionTools/DynamicBoneCopy/Datas/*.*
+Assets/ExpansionTools/LipSyncSelect/
+Assets/SIN
+
+*.csproj
+*.sln
+*.unity
