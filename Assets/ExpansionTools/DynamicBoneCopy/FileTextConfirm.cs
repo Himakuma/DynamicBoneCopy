@@ -9,19 +9,19 @@ public class FileTextConfirm : EditorWindow
 {
     public class FileInfoData {
         public string fileName = string.Empty;
-        public string boneName = string.Empty;
-        public DynamicBone target = null;
+        public string name = string.Empty;
+        public object target = null;
     }
 
     public string fileName = string.Empty;
 
-    public string boneName = string.Empty;
+    public string saveName = string.Empty;
 
-    private DynamicBone target = null;
+    private object target = null;
 
     private Action<FileInfoData> callback;
 
-    public DynamicBone Target
+    public object Target
     {
         get
         {
@@ -48,7 +48,7 @@ public class FileTextConfirm : EditorWindow
 
         GUILayout.BeginHorizontal();
         GUILayout.Label("保存名称", GUILayout.Width(100));
-        boneName = GUILayout.TextField(boneName, GUILayout.Width(200));
+        saveName = GUILayout.TextField(saveName, GUILayout.Width(200));
         GUILayout.EndHorizontal();
 
         GUILayout.BeginHorizontal();
@@ -57,7 +57,7 @@ public class FileTextConfirm : EditorWindow
             FileInfoData fileInfoData = new FileInfoData
             {
                 fileName = fileName,
-                boneName = boneName,
+                name = saveName,
                 target = Target
             };
             callback(fileInfoData);

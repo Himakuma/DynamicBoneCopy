@@ -24,6 +24,7 @@ public class FileUtil
         {
             string fileName = baseFileName + "(" + fileIndex + ")." + extension;
             renameFilePath = Path.Combine(dirPath, fileName);
+            fileIndex++;
         }
         return renameFilePath;
     }

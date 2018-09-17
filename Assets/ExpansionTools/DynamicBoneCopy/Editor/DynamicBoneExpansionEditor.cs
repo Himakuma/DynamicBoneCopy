@@ -11,7 +11,7 @@ public class DynamicBoneExpansionEditor : Editor
 {
     public class BoneData
     {
-        public string boneName = string.Empty;
+        public string name = string.Empty;
         public string filePath = string.Empty;
     }
 
@@ -26,7 +26,7 @@ public class DynamicBoneExpansionEditor : Editor
     private static DynamicBone dynamicBoneCopy = null;
     private static Dictionary<string, BoneData> boneDatas = null;
 
-    private  void OnEnable()
+    private void OnEnable()
     {
         LoadBoneList();
     }
@@ -66,19 +66,17 @@ public class DynamicBoneExpansionEditor : Editor
             });
 
             menu.AddSeparator("");
-
             foreach (string boneKey in boneDatas.Keys)
             {
                 BoneData boneData = boneDatas[boneKey];
-                menu.AddItem(new GUIContent(boneData.boneName), false, BoneSettiong, boneData);
+                menu.AddItem(new GUIContent("Bone/" + boneData.name), false, BoneSettiong, boneData);
             }
-
             menu.ShowAsContext();
         }
     }
 
     /// <summary>
-    ///  設定値の繁栄
+    ///  設定値の反映
     /// </summary>
     /// <param name="obj"></param>
     private void BoneSettiong(object obj)
@@ -86,9 +84,8 @@ public class DynamicBoneExpansionEditor : Editor
         BoneData boneData = (BoneData)obj;
         DynamicBoneSettingV1 setting = new DynamicBoneSettingV1();
         DynamicBone bone = (DynamicBone)target;
-        setting.SetXmlToBone(boneData.filePath, boneData.boneName, bone);
+        setting.SetXmlToBone(boneData.filePath, boneData.name, bone);
     }
-
 
     /// <summary>
     /// ボーンリストの読込
@@ -104,10 +101,12 @@ public class DynamicBoneExpansionEditor : Editor
             foreach (XmlNode nodeData in xmlDoc.SelectNodes("DynamicBones/Bone"))
             {
                 XmlNode nameNode = nodeData.SelectSingleNode("Name");
-                BoneData boneData = new BoneData();
-                boneData.filePath = Path.Combine(datasDir, filePath);
-                boneData.boneName = nameNode.InnerText;
-                boneDatas.Add(boneData.filePath + "__" + boneData.boneName, boneData);
+                BoneData boneData = new BoneData
+                {
+                    filePath = Path.Combine(datasDir, filePath),
+                    name = nameNode.InnerText
+                };
+                boneDatas.Add(boneData.filePath + "__" + boneData.name, boneData);
             }
         }
     }
@@ -119,21 +118,21 @@ public class DynamicBoneExpansionEditor : Editor
     {
         string datasDir = Path.Combine(Application.dataPath, DATAS_BASE_DIR);
         FileTextConfirm window = EditorWindow.GetWindow<FileTextConfirm>(true, "ファイル名入力");
-        window.Target = (DynamicBone)target;
+        window.Target = target;
 
         // 入力値の復元
         window.fileName = EditorPrefs.GetString(SAVE_KEY_FILE_NAME);
-        window.boneName = EditorPrefs.GetString(SAVE_KEY_BONE_NAME);
+        window.saveName = EditorPrefs.GetString(SAVE_KEY_BONE_NAME);
 
         window.SetCallback(x => {
             EditorPrefs.SetString(SAVE_KEY_FILE_NAME, x.fileName);
-            EditorPrefs.SetString(SAVE_KEY_BONE_NAME, x.boneName);
+            EditorPrefs.SetString(SAVE_KEY_BONE_NAME, x.name);
 
             string filePath = Path.Combine(datasDir, x.fileName + ".xml");
-            string saveKey = filePath + "__" + x.boneName;
+            string saveKey = filePath + "__" + x.name;
             if (boneDatas.ContainsKey(saveKey))
             {
-                bool isSave = EditorUtility.DisplayDialog("上書き保存", "同名称があります。上書きしますか？\n\n\nボーン名：" + x.boneName
+                bool isSave = EditorUtility.DisplayDialog("上書き保存", "同名称があります。上書きしますか？\n\n\nボーン名：" + x.name
                     + "\nファイルパス：" + filePath, "はい", "いいえ");
                 if (!isSave) {
                     return;
@@ -141,7 +140,7 @@ public class DynamicBoneExpansionEditor : Editor
             }
 
             DynamicBoneSettingV1 setting = new DynamicBoneSettingV1();
-            if (setting.ExportXml(x.target, x.boneName, filePath))
+            if (setting.ExportXmlBone((DynamicBone)x.target, x.name, filePath))
             {
                 AssetDatabase.Refresh();
                 window.Close();
@@ -182,8 +181,6 @@ public class DynamicBoneExpansionEditor : Editor
         toDynamicBone.m_DistantDisable = dynamicBoneCopy.m_DistantDisable;
         toDynamicBone.m_DistanceToObject = dynamicBoneCopy.m_DistanceToObject;
 
-
-
         if (dynamicBoneCopy.m_Colliders != null)
         {
             toDynamicBone.m_Colliders = new List<DynamicBoneColliderBase>();
@@ -208,56 +205,14 @@ public class DynamicBoneExpansionEditor : Editor
 
 
         /**
-         * TODO：Transform、DynamicBoneColliderBaseの扱いについて
+         * TODO：Transformの扱いについて
          * 処理対象の座標ように保持している情報の為、コピーの必要ない？？
          * Gameオブジェクトの名称を取得して、検索、自動設定だけがよい？？
 
-        if (dynamicBoneCopy.m_Colliders != null)
-        {
-            toDynamicBone.m_Colliders = new List<DynamicBoneColliderBase>();
-            foreach (DynamicBoneColliderBase dynamicBoneColliderCopy in dynamicBoneCopy.m_Colliders)
-            {
-                toDynamicBone.m_Colliders.Add(CopyDynamicBoneColliderBase(dynamicBoneColliderCopy));
-            }
-        }
-
-        
-        if (dynamicBoneCopy.m_Exclusions != null && toDynamicBone.m_Exclusions != null)
-        {
-            for (int i = 0; i < dynamicBoneCopy.m_Exclusions.Count; i++)
-            {
-                if (i < toDynamicBone.m_Exclusions.Count)
-                {
-                    CopyTransform(dynamicBoneCopy.m_Exclusions[i], toDynamicBone.m_Exclusions[i]);
-                }
-            }
-        }
-        CopyTransform(dynamicBoneCopy.m_ReferenceObject, toDynamicBone.m_ReferenceObject);
-
-        ・コピー変数一覧
+        ・残コピー変数一覧
         Transform m_Root = null;
-        float m_UpdateRate = 60.0f;
-        UpdateMode m_UpdateMode = UpdateMode.Normal;
-        float m_Damping = 0.1f;
-        AnimationCurve m_DampingDistrib = null;
-        float m_Elasticity = 0.1f;
-        AnimationCurve m_ElasticityDistrib = null;
-        float m_Stiffness = 0.1f;
-        AnimationCurve m_StiffnessDistrib = null;
-        float m_Inert = 0;
-        AnimationCurve m_InertDistrib = null;
-        float m_Radius = 0;
-        AnimationCurve m_RadiusDistrib = null;
-        float m_EndLength = 0;
-        Vector3 m_EndOffset = Vector3.zero;
-        Vector3 m_Gravity = Vector3.zero;
-        Vector3 m_Force = Vector3.zero;
-        List<DynamicBoneColliderBase> m_Colliders = null;
         List<Transform> m_Exclusions = null;
-        FreezeAxis m_FreezeAxis = FreezeAxis.None;
-        bool m_DistantDisable = false;
         Transform m_ReferenceObject = null;
-        float m_DistanceToObject = 20;
         */
     }
 
@@ -291,50 +246,4 @@ public class DynamicBoneExpansionEditor : Editor
     {
         return new Vector3(copyVal.x, copyVal.y, copyVal.z);
     }
-
-    /**
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="copyVal"></param>
-    /// <returns></returns>
-    private DynamicBoneColliderBase CopyDynamicBoneColliderBase(DynamicBoneColliderBase copyVal)
-    {
-        if (copyVal is DynamicBonePlaneCollider)
-        {
-        }
-        else if (copyVal is DynamicBoneCollider)
-        {
-        }
-
-        DynamicBoneColliderBase toVal = new DynamicBoneColliderBase();
-        toVal.m_Direction = copyVal.m_Direction;
-        toVal.m_Center = CopyVector3(copyVal.m_Center);
-        toVal.m_Bound = copyVal.m_Bound;
-        return null;
-    }
-
-    private DynamicBoneColliderBase CopyDynamicBonePlaneCollider(DynamicBoneColliderBase copyVal)
-    {
-        return copyVal;
-    }
-    private DynamicBoneColliderBase CopyDynamicBoneCollider(DynamicBoneColliderBase copyVal)
-    {
-        return copyVal;
-
-    }
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="copyVal"></param>
-    /// <param name="toVal"></param>
-    private void CopyTransform(Transform copyVal, Transform toVal)
-    {
-        if (copyVal == null || toVal == null)
-        {
-            return;
-        }
-    }
-    */
-
 }

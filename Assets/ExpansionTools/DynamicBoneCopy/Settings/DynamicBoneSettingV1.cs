@@ -6,8 +6,8 @@ using System.Reflection;
 using System.Text;
 using System.Xml;
 using UnityEngine;
-
-public class DynamicBoneSettingV1 : IDynamicBoneSetting
+    
+public class DynamicBoneSettingV1 : SettingBase
 {
     private const string DATA_VERSION = "1.0";
     private readonly string[] exportValNames = {
@@ -29,9 +29,72 @@ public class DynamicBoneSettingV1 : IDynamicBoneSetting
         "m_Force",
         "m_FreezeAxis",
         "m_DistantDisable",
-        "m_DistanceToObject"
+        "m_DistanceToObject",
+        "m_Colliders"
     };
 
+    /// <summary>
+    /// XMLデータ出力
+    /// </summary>
+    /// <param name="target"></param>
+    /// <param name="exportName"></param>
+    /// <param name="writePath"></param>
+    /// <returns></returns>
+    public override bool ExportXmlBone(DynamicBone target, string exportName, string writePath)
+    {
+        XmlDocument xmlDoc = new XmlDocument();
+        if (File.Exists(writePath))
+        {
+            xmlDoc = new XmlDocument();
+            xmlDoc.Load(writePath);
+        }
+        else
+        {
+            XmlDeclaration declaration = xmlDoc.CreateXmlDeclaration("1.0", "UTF-8", null);
+            xmlDoc.AppendChild(declaration);
+
+            XmlElement root = xmlDoc.CreateElement("DynamicBones");
+            xmlDoc.AppendChild(root);
+        }
+
+        XmlElement boneElem = GetBoneXmlElement(xmlDoc, exportName);
+        XmlElement paramsElem = GetParamsXmlElement(xmlDoc, boneElem);
+        foreach (string paramName in exportValNames)
+        {
+            AddParam(paramsElem, paramName, target, xmlDoc);
+        }
+
+        using (StringWriter writer = new StringWriter())
+        using (XmlWriter xmlWriter = XmlWriter.Create(writer))
+        {
+            xmlDoc.WriteTo(xmlWriter);
+            xmlWriter.Flush();
+            return FileUtil.WriteText(writer.GetStringBuilder().ToString(), writePath, Encoding.UTF8, false);
+        }
+    }
+
+    /// <summary>
+    ///  ボーンXMLデータ設定
+    /// </summary>
+    /// <param name="xmlPath"></param>
+    /// <param name="name"></param>
+    /// <param name="target"></param>
+    public override void SetXmlToBone(string xmlPath, string name, DynamicBone target)
+    {
+        XmlDocument xmlDoc = new XmlDocument();
+        xmlDoc.Load(xmlPath);
+        foreach (XmlNode nodeData in xmlDoc.SelectNodes("DynamicBones/Bone"))
+        {
+            if (name == nodeData.SelectSingleNode("Name").InnerText)
+            {
+                foreach (XmlNode param in nodeData.SelectNodes("Params/Param"))
+                {
+                    SetParam(target, (XmlElement)param);
+                }
+                return;
+            }
+        }
+    }
 
     /// <summary>
     /// ボーン名からエレメント取得
@@ -69,85 +132,21 @@ public class DynamicBoneSettingV1 : IDynamicBoneSetting
     /// パラメータ取得
     /// </summary>
     /// <param name="xmlDoc"></param>
-    /// <param name="boneElem"></param>
+    /// <param name="targetElem"></param>
     /// <returns></returns>
-    private XmlElement GetParamsXmlElement(XmlDocument xmlDoc, XmlElement boneElem)
+    private XmlElement GetParamsXmlElement(XmlDocument xmlDoc, XmlElement targetElem)
     {
-        XmlElement paramsElem = (XmlElement)boneElem.SelectSingleNode("Params");
+        XmlElement paramsElem = (XmlElement)targetElem.SelectSingleNode("Params");
         if (paramsElem == null)
         {
             paramsElem = xmlDoc.CreateElement("Params");
-            boneElem.AppendChild(paramsElem);
+            targetElem.AppendChild(paramsElem);
         }
         else
         {
             paramsElem.RemoveAll();
         }
         return paramsElem;
-    }
-
-
-    /// <summary>
-    /// XMLデータ出力
-    /// </summary>
-    /// <param name="target"></param>
-    /// <param name="exportName"></param>
-    /// <param name="writePath"></param>
-    /// <returns></returns>
-    public bool ExportXml(DynamicBone target, string exportName, string writePath)
-    {
-        XmlDocument xmlDoc = new XmlDocument();
-        if (File.Exists(writePath))
-        {
-            xmlDoc = new XmlDocument();
-            xmlDoc.Load(writePath);
-        }
-        else
-        {
-            XmlDeclaration declaration = xmlDoc.CreateXmlDeclaration("1.0", "UTF-8", null);
-            xmlDoc.AppendChild(declaration);
-
-            XmlElement root = xmlDoc.CreateElement("DynamicBones");
-            xmlDoc.AppendChild(root);
-        }
-
-        XmlElement boneElem = GetBoneXmlElement(xmlDoc, exportName);
-        XmlElement paramsElem = GetParamsXmlElement(xmlDoc, boneElem);
-        foreach (string paramName in exportValNames)
-        {
-            AddParam(paramsElem, paramName, target, xmlDoc);
-        }
-
-        using (StringWriter writer = new StringWriter())
-        using (XmlWriter xmlWriter = XmlWriter.Create(writer))
-        {
-            xmlDoc.WriteTo(xmlWriter);
-            xmlWriter.Flush();
-            return FileUtil.WriteText(writer.GetStringBuilder().ToString(), writePath, Encoding.UTF8, false);
-        }
-    }
-
-    /// <summary>
-    ///  XMLデータ設定
-    /// </summary>
-    /// <param name="xmlPath"></param>
-    /// <param name="name"></param>
-    /// <param name="target"></param>
-    public void SetXmlToBone(string xmlPath, string name, DynamicBone target)
-    {
-        XmlDocument xmlDoc = new XmlDocument();
-        xmlDoc.Load(xmlPath);
-        foreach (XmlNode nodeData in xmlDoc.SelectNodes("DynamicBones/Bone"))
-        {
-            if (name == nodeData.SelectSingleNode("Name").InnerText)
-            {
-                foreach (XmlNode param in nodeData.SelectNodes("Params/Param"))
-                {
-                    SetParam(target, (XmlElement)param);
-                }
-                return;
-            }
-        }
     }
 
     /// <summary>
@@ -164,7 +163,7 @@ public class DynamicBoneSettingV1 : IDynamicBoneSetting
         {
             fieldInfo.SetValue(target, float.Parse(param.InnerText));
         }
-        else if(fieldInfo.FieldType == typeof(Vector3))
+        else if (fieldInfo.FieldType == typeof(Vector3))
         {
             fieldInfo.SetValue(target, ConvertVector3(param));
         }
@@ -184,6 +183,11 @@ public class DynamicBoneSettingV1 : IDynamicBoneSetting
         {
             fieldInfo.SetValue(target, bool.Parse(param.InnerText));
         }
+        else if (fieldInfo.FieldType == typeof(List<DynamicBoneColliderBase>))
+        {
+            List<DynamicBoneColliderBase> colliders = (List<DynamicBoneColliderBase>)fieldInfo.GetValue(target);
+            fieldInfo.SetValue(target, ConvertColliders(colliders, param));
+        }
         else
         {
             fieldInfo.SetValue(target, param.InnerText);
@@ -191,45 +195,46 @@ public class DynamicBoneSettingV1 : IDynamicBoneSetting
     }
 
     /// <summary>
-    /// Vector3変換
+    /// List<DynamicBoneColliderBase>変換
     /// </summary>
+    /// <param name="targetColliders"></param>
     /// <param name="param"></param>
     /// <returns></returns>
-    private Vector3 ConvertVector3(XmlElement param)
+    private List<DynamicBoneColliderBase> ConvertColliders(List<DynamicBoneColliderBase> targetColliders, XmlElement param)
     {
-        return new Vector3 {
-            x = float.Parse(param.SelectSingleNode("x").InnerText),
-            y = float.Parse(param.SelectSingleNode("y").InnerText),
-            z = float.Parse(param.SelectSingleNode("z").InnerText)
-        };
+        if (targetColliders == null)
+        {
+            targetColliders = new List<DynamicBoneColliderBase>();
+        }
+
+        XmlNodeList colliderDatas = param.SelectNodes("Colliders/Collider");
+        for (int i = 0; i < colliderDatas.Count; i++)
+        {
+            if (i < targetColliders.Count)
+            {
+                DynamicBoneCollider targetCollider = (DynamicBoneCollider)targetColliders[i];
+                ConvertColliderParamCopy(targetCollider, colliderDatas[i]);
+            }
+            else
+            {
+                targetColliders.Add(null);
+            }
+        }
+        return targetColliders;
     }
 
     /// <summary>
-    /// AnimationCurve変換
+    /// DynamicBoneCollider変換
     /// </summary>
-    /// <param name="param"></param>
-    /// <returns></returns>
-    private AnimationCurve ConvertAnimationCurve(XmlElement param)
+    /// <param name="targetCollider"></param>
+    /// <param name="colliderData"></param>
+    private void ConvertColliderParamCopy(DynamicBoneCollider targetCollider, XmlNode colliderData)
     {
-        AnimationCurve val = new AnimationCurve
-        {
-            preWrapMode = (WrapMode) int.Parse(param.SelectSingleNode("preWrapMode").InnerText),
-            postWrapMode = (WrapMode)int.Parse(param.SelectSingleNode("postWrapMode").InnerText)
-        };
-
-
-        foreach (XmlElement keyFrameData in param.SelectNodes("Keys/Key"))
-        {
-            Keyframe cloneKey = new Keyframe {
-                time = float.Parse(keyFrameData.SelectSingleNode("time").InnerText),
-                value = float.Parse(keyFrameData.SelectSingleNode("value").InnerText),
-                inTangent = float.Parse(keyFrameData.SelectSingleNode("inTangent").InnerText),
-                outTangent = float.Parse(keyFrameData.SelectSingleNode("outTangent").InnerText)
-            };
-            val.AddKey(cloneKey);
-        }
-
-        return val;
+        targetCollider.m_Direction = (DynamicBoneCollider.Direction)Enum.Parse(typeof(DynamicBoneCollider.Direction), colliderData.SelectSingleNode("m_Direction").InnerText);
+        targetCollider.m_Center = ConvertVector3((XmlElement)colliderData.SelectSingleNode("m_Center"));
+        targetCollider.m_Bound = (DynamicBoneCollider.Bound)Enum.Parse(typeof(DynamicBoneCollider.Bound), colliderData.SelectSingleNode("m_Bound").InnerText);
+        targetCollider.m_Radius = float.Parse(colliderData.SelectSingleNode("m_Radius").InnerText);
+        targetCollider.m_Height = float.Parse(colliderData.SelectSingleNode("m_Height").InnerText);
     }
 
     /// <summary>
@@ -255,6 +260,19 @@ public class DynamicBoneSettingV1 : IDynamicBoneSetting
             AnimationCurve animationCurveVal = (AnimationCurve)fieldInfo.GetValue(target);
             SetAnimationCurveParam(xmlDoc, param, animationCurveVal);
         }
+        else if (fieldInfo.FieldType == typeof(List<DynamicBoneColliderBase>))
+        {
+            XmlElement collidersElem = xmlDoc.CreateElement("Colliders");
+            
+            List<DynamicBoneColliderBase> colliders = (List<DynamicBoneColliderBase>)fieldInfo.GetValue(target);
+            foreach (DynamicBoneColliderBase collider in colliders)
+            {
+                XmlElement colliderElem = xmlDoc.CreateElement("Collider");
+                SetBoneCollider(xmlDoc, colliderElem, (DynamicBoneCollider)collider);
+                collidersElem.AppendChild(colliderElem);
+            }
+            param.AppendChild(collidersElem);
+        }
         else
         {
             object val = fieldInfo.GetValue(target);
@@ -264,78 +282,154 @@ public class DynamicBoneSettingV1 : IDynamicBoneSetting
     }
 
     /// <summary>
-    /// Vector3用
+    /// DynamicBoneColliderBase用
     /// </summary>
+    /// <param name="xmlDoc"></param>
     /// <param name="parent"></param>
     /// <param name="target"></param>
-    /// <param name="xmlDoc"></param>
-    private void SetVector3Param(XmlDocument xmlDoc, XmlElement parent, Vector3 target)
+    private void SetBoneCollider(XmlDocument xmlDoc, XmlElement parent, DynamicBoneCollider target)
     {
-        XmlElement x = xmlDoc.CreateElement("x");
-        x.InnerText = target.x.ToString();
+        XmlElement mDirection = xmlDoc.CreateElement("m_Direction");
+        mDirection.InnerText = target.m_Direction.ToString();
 
-        XmlElement y = xmlDoc.CreateElement("y");
-        y.InnerText = target.y.ToString();
+        XmlElement mCenter = xmlDoc.CreateElement("m_Center");
+        SetVector3Param(xmlDoc, mCenter, target.m_Center);
 
-        XmlElement z = xmlDoc.CreateElement("z");
-        z.InnerText = target.z.ToString();
+        XmlElement mBound = xmlDoc.CreateElement("m_Bound");
+        mBound.InnerText = target.m_Bound.ToString();
 
-        parent.AppendChild(x);
-        parent.AppendChild(y);
-        parent.AppendChild(z);
+        XmlElement mRadius = xmlDoc.CreateElement("m_Radius");
+        mRadius.InnerText = target.m_Radius.ToString();
+
+        XmlElement mHeight = xmlDoc.CreateElement("m_Height");
+        mHeight.InnerText = target.m_Height.ToString();
+
+        parent.AppendChild(mDirection);
+        parent.AppendChild(mCenter);
+        parent.AppendChild(mBound);
+        parent.AppendChild(mRadius);
+        parent.AppendChild(mHeight);
     }
 
+
     /// <summary>
-    /// AnimationCurve用
+    /// コライダー名からエレメント取得
     /// </summary>
     /// <param name="xmlDoc"></param>
-    /// <param name="parent"></param>
-    /// <param name="target"></param>
-    private void SetAnimationCurveParam(XmlDocument xmlDoc, XmlElement parent, AnimationCurve target)
+    /// <param name="name"></param>
+    /// <returns></returns>
+    private XmlElement GetColliderXmlElement(XmlDocument xmlDoc, string name)
     {
-        XmlElement preWrapMode = xmlDoc.CreateElement("preWrapMode");
-        preWrapMode.InnerText = ((int)target.preWrapMode).ToString();
-
-        XmlElement postWrapMode = xmlDoc.CreateElement("postWrapMode");
-        postWrapMode.InnerText = ((int)target.preWrapMode).ToString();
-
-        XmlElement keys = xmlDoc.CreateElement("Keys");
-        foreach (Keyframe addKey in target.keys)
+        XmlNodeList colliders = xmlDoc.SelectNodes("DynamicBones/Collider");
+        foreach (XmlNode boneNode in colliders)
         {
-            AddKeyframe(xmlDoc, keys, addKey);
+            if (boneNode.SelectSingleNode("Name").InnerText == name)
+            {
+                return (XmlElement)boneNode;
+            }
         }
-        parent.AppendChild(preWrapMode);
-        parent.AppendChild(postWrapMode);
-        parent.AppendChild(keys);
+
+        XmlElement root = (XmlElement)xmlDoc.SelectSingleNode("DynamicBones");
+        XmlElement boneElem = xmlDoc.CreateElement("Collider");
+        root.AppendChild(boneElem);
+
+        XmlElement nameElem = xmlDoc.CreateElement("Name");
+        nameElem.InnerText = name;
+        boneElem.AppendChild(nameElem);
+
+        XmlElement dataVersionElem = xmlDoc.CreateElement("DataVersion");
+        dataVersionElem.InnerText = DATA_VERSION;
+        boneElem.AppendChild(dataVersionElem);
+        return boneElem;
+    }
+
+    public override bool ExportXmlCollider(DynamicBoneCollider target, string exportName, string writePath)
+    {
+        XmlDocument xmlDoc = new XmlDocument();
+        if (File.Exists(writePath))
+        {
+            xmlDoc = new XmlDocument();
+            xmlDoc.Load(writePath);
+        }
+        else
+        {
+            XmlDeclaration declaration = xmlDoc.CreateXmlDeclaration("1.0", "UTF-8", null);
+            xmlDoc.AppendChild(declaration);
+
+            XmlElement root = xmlDoc.CreateElement("DynamicBones");
+            xmlDoc.AppendChild(root);
+        }
+
+        XmlElement colliderElem = GetBoneColliderXmlElement(xmlDoc, exportName);
+        XmlElement paramsElem = GetParamsXmlElement(xmlDoc, colliderElem);
+        XmlElement paramElem = xmlDoc.CreateElement("Param");
+        
+        XmlElement colliderParamElem = xmlDoc.CreateElement("Collider");
+        SetBoneCollider(xmlDoc, colliderParamElem, target);
+
+        paramElem.AppendChild(colliderParamElem);
+        paramsElem.AppendChild(paramElem);
+
+
+        using (StringWriter writer = new StringWriter())
+        using (XmlWriter xmlWriter = XmlWriter.Create(writer))
+        {
+            xmlDoc.WriteTo(xmlWriter);
+            xmlWriter.Flush();
+            return FileUtil.WriteText(writer.GetStringBuilder().ToString(), writePath, Encoding.UTF8, false);
+        }
     }
 
     /// <summary>
-    /// Keyframe用
+    /// コライダーXMLデータ設定
+    /// </summary>
+    /// <param name="xmlPath"></param>
+    /// <param name="name"></param>
+    /// <param name="target"></param>
+    public override void SetXmlToCollider(string xmlPath, string name, DynamicBoneCollider target)
+    {
+        XmlDocument xmlDoc = new XmlDocument();
+        xmlDoc.Load(xmlPath);
+        foreach (XmlNode nodeData in xmlDoc.SelectNodes("DynamicBones/Collider"))
+        {
+            if (name == nodeData.SelectSingleNode("Name").InnerText)
+            {
+                ConvertColliderParamCopy(target, nodeData.SelectSingleNode("Params/Param/Collider"));
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// ボーン名からエレメント取得
     /// </summary>
     /// <param name="xmlDoc"></param>
-    /// <param name="parent"></param>
-    /// <param name="key"></param>
-    private void AddKeyframe(XmlDocument xmlDoc, XmlElement parent, Keyframe key)
+    /// <param name="name"></param>
+    /// <returns></returns>
+    private XmlElement GetBoneColliderXmlElement(XmlDocument xmlDoc, string name)
     {
-        XmlElement keyElement = xmlDoc.CreateElement("Key");
+        XmlNodeList colliders = xmlDoc.SelectNodes("DynamicBones/Collider");
+        foreach (XmlNode colliderNode in colliders)
+        {
+            if (colliderNode.SelectSingleNode("Name").InnerText == name)
+            {
+                return (XmlElement)colliderNode;
+            }
+        }
 
-        XmlElement time = xmlDoc.CreateElement("time");
-        time.InnerText = key.time.ToString();
+        XmlElement root = (XmlElement)xmlDoc.SelectSingleNode("DynamicBones");
 
-        XmlElement value = xmlDoc.CreateElement("value");
-        value.InnerText = key.value.ToString();
+        XmlElement colliderElem = xmlDoc.CreateElement("Collider");
+        root.AppendChild(colliderElem);
 
-        XmlElement inTangent = xmlDoc.CreateElement("inTangent");
-        inTangent.InnerText = key.inTangent.ToString();
+        XmlElement nameElem = xmlDoc.CreateElement("Name");
+        nameElem.InnerText = name;
+        colliderElem.AppendChild(nameElem);
 
-        XmlElement outTangent = xmlDoc.CreateElement("outTangent");
-        outTangent.InnerText = key.outTangent.ToString();
-
-        keyElement.AppendChild(time);
-        keyElement.AppendChild(value);
-        keyElement.AppendChild(inTangent);
-        keyElement.AppendChild(outTangent);
-        parent.AppendChild(keyElement);
+        XmlElement dataVersionElem = xmlDoc.CreateElement("DataVersion");
+        dataVersionElem.InnerText = DATA_VERSION;
+        colliderElem.AppendChild(dataVersionElem);
+        return colliderElem;
     }
 }
 
